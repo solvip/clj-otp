@@ -24,37 +24,35 @@
 (ns is.bitbucket.otp
   (:import [org.apache.commons.codec.binary Base32]))
 
-
 (defn base32-decode [string]
   (.decode (Base32.) string))
 
-
 (defn base32-encode [string]
   (.encodeToString (Base32.) string))
-
 
 (defn integer-to-bytebuffer [int]
   (let [buffer (java.nio.ByteBuffer/allocate 8)]
     (.array (.putLong buffer int))))
 
-
-(defn generate-secret-key []
+(defn generate-secret-key
   "Generate a base32-encoded random key"
+  []
   (let [bytes (make-array Byte/TYPE 10)]
     (.nextBytes (java.security.SecureRandom.) bytes)
     (base32-encode bytes)))
 
 
-(defn generate-hmac [key msg]
+(defn generate-hmac 
   "Generate a SHA1 HMAC of msg with key, returning a byte array."
+  [key msg]
   (let [key (javax.crypto.spec.SecretKeySpec. key "HmacSHA1")
         mac (doto (javax.crypto.Mac/getInstance "HmacSHA1")
               (.init key))]
     (into [] (.doFinal mac msg))))
 
-
-(defn- compute-hotp-value [hash]
+(defn compute-hotp-value
   "http://tools.ietf.org/html/rfc4226#section-5.4"
+  [hash]
   (let [offset (bit-and (hash 19) 0xf)
         binary (bit-or (bit-shift-left (bit-and (hash offset) 0x7f) 24)
                        (bit-shift-left (bit-and (hash (+ offset 1)) 0xff) 16)
@@ -62,16 +60,17 @@
                        (bit-and (hash (+ offset 3)) 0xff))]
     (mod binary 1000000)))
 
-
-(defn generate-hotp [secret interval]
+(defn generate-hotp 
   "Generate a counter-based HMAC-OTP"
+  [secret interval]
   (let [key (base32-decode secret)
         hash (generate-hmac key (integer-to-bytebuffer interval))]
     (format "%06d" (compute-hotp-value hash))))
 
 
 (defn generate-totp 
-  "Generate a time-based HMAC-OTP"
+  "Generate a time-based HMAC-OTP
+If time-offset is provided, offset the current system time with time-offset seconds"
   ([secret] (generate-totp secret 0))
   ([secret time-offset]
      (generate-hotp secret (/ (+ (/ (System/currentTimeMillis) 1000) 
